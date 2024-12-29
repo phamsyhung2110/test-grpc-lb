@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a-grpc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-a-grpc
+  template:
+    metadata:
+      labels:
+        app: service-a-grpc
+    spec:
+      containers:
+        - name: service-a-grpc
+          imagePullPolicy: Always
+          image: <repo>testgrpc:v1
+          # command: ["node", "service-A.js" ] # Run without client side LB
+          command: ["node", "service-A-lb.js" ] # Run with client side LB
+          ports:
+            - containerPort: 5000 # HTTP port for incoming requests
+          env:
+            - name: SERVICE_B_HOST
+              value: "service-b-grpc" # the name of the backend service
+            - name: GRPC_SERVICE_ADDRESS
+              value: "dns:///service-b-grpc.grpc.svc.cluster.local:50051"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-grpc
+spec:
+  selector:
+    app: service-a-grpc
+  ports:
+    - protocol: TCP
+      port: 5000 # External port
+      targetPort: 5000 # Internal port (Service A)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b-grpc
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: service-b-grpc
+  template:
+    metadata:
+      labels:
+        app: service-b-grpc
+    spec:
+      containers:
+        - name: service-b-grpc
+          imagePullPolicy: Always
+          image: phamsyhung1110/testgrpc:grpc-app-v2
+          command: ["node", "service-B.js" ]
+          ports:
+            - containerPort: 50051 # gRPC port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b-grpc
+spec:
+  clusterIP: None
+  selector:
+    app: service-b-grpc
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: 50051
+      # appProtocol: grpc 

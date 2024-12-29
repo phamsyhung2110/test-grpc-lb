@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-a-http
+  template:
+    metadata:
+      labels:
+        app: service-a-http
+    spec:
+      containers:
+        - name: service-a-http
+          image: <repo>/testgrpc:v1
+          command: ["node", "service-A.js" ]
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000 # HTTP port for incoming requests
+          env:
+            - name: SERVICE_B_URL
+              value: "http://service-b-http:5001" # the name of the backend service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-http
+spec:
+  selector:
+    app: service-a-http
+  ports:
+    - protocol: TCP
+      port: 5000 # External port
+      targetPort: 5000 # Internal port (Service A)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b-http
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: service-b-http
+  template:
+    metadata:
+      labels:
+        app: service-b-http
+    spec:
+      containers:
+        - name: service-b-http
+          image: <repo>/testgrpc:v1
+          imagePullPolicy: Always
+          command: ["node", "service-B.js" ]
+          ports:
+            - containerPort: 5001 # HTTP port
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-b-http
+spec:
+  selector:
+    app: service-b-http
+  ports:
+    - protocol: TCP
+      port: 5001
+      targetPort: 5001
+  clusterIP: None # Headless service for HTTP
